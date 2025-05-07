@@ -1,11 +1,11 @@
 const express = require('express');
-const connection = require('./db');
+const connection = require('./models/db');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcrypt');
 const app = express();
 const port = 5555;
 const validator = require('validator')
-
+require('dotenv').config();
 
 app.use(bodyParser.json());
 app.use(express.json());
@@ -41,7 +41,7 @@ app.get('/users/:id',async (req,res)=>{
 app.post('/users', async (req,res)=>{
     const {username,email,password} = req.body;
     try{
-        const [result] = await connection.execute('insert into users (username,email,password) values(?,?,?)',[username,email,password]);
+        const [result] = await connection.execute('inserttt into users (username,email,password) values(?,?,?)',[username,email,password]);
     
     res.status(200).json({result:1,data:{id:result.insertId,username,email,password}});
     } catch (err){
@@ -78,9 +78,9 @@ app.put('/users/:id', async (req,res)=>{
         const [result] = await connection.execute('update users set username = ? , email = ? , password = ? where id = ?',[username,email,password,id]);
   
     if(result.affectedRows ===0) return res.status(200).json({result:0,message:'user not found'});
-    res.json({result:1,message:'user updated successfully'});
+    res.json({result:1,data:{id,username,email,password}});
     } catch (err){
-        res.status(200).json({result:0,message:'error'})
+        res.status(200).json({result:0,message:'error'})    
     }
 })
 
@@ -131,7 +131,7 @@ app.post('/register', async(req,res)=>{
     if (!validator.isEmail(email)){
         return res.status(200).json({result:0,message:"Invalid email"})
     }
-    if (!validator.isStrongPassword(password)){
+    if (!validator.isStrongPassword(password)){ 
         return res.status(200).json({result:0,message:"Password is not strong enough"})
     }
     try{
@@ -150,7 +150,7 @@ app.post('/register', async(req,res)=>{
 
 
 const jwt = require('jsonwebtoken');
-const jwt_secret = 'ad9a4q$#%#$^#avwen8an4vaHDKD857&&RR';
+const jwt_secret = process.env.JWT_SECRET;
 
 app.post('/login', async (req,res)=>{
     const {email,password}=req.body;
@@ -186,22 +186,32 @@ function authenticateToken(req,res,next){
     })
 }
 
-app.get('/test-token', authenticateToken,async (req, res) => {
-    const userId = req.user.id;
-    try{
-        const [result] = await connection.execute('select id,username,email from users where id = ?',[userId]);
-        res.json(result[0]);
-    } catch (err){
-        console.log(err);
-        res.status(500).send('error')
-    }
-  });
+// app.get('/test-token', authenticateToken,async (req, res) => {
+//     const userId = req.user.id;
+//     try{
+//         const [result] = await connection.execute('select id,username,email from users where id = ?',[userId]);
+//         res.json(result[0]);
+//     } catch (err){
+//         console.log(err);
+//         res.status(500).send('error')
+//     }
+//   });
 
 
-  app.get('/product', async (req,res)=>{
+  app.get('/products', async (req,res)=>{
   
     try{
-    const [result1]= await connection.execute(`select * from product `);
+        let query = "select * from products";
+        
+    const page = parseInt(req.query.page);
+    const limit = parseInt(req.query.limit);
+    const offset = (page-1)*limit;
+
+    if (limit && paage) {
+       query +=  `limit ${limit} offset ${offset}`;
+    }
+
+    const [result1]= await connection.execute(query);
     if(!result1 || result1.length === 0) return res.status(200).json({result:0,message:'no products found'})    
     res.status(200).json({result:1,data:result1});
     } catch (err){
@@ -215,19 +225,20 @@ app.get('/product1', async (req,res)=>{
     const page = parseInt(req.query.page);
     const limit = parseInt(req.query.limit);
     const offset = (page-1)*limit;
-    try{
-    const [result1]= await connection.execute(`select * from product limit ${limit} offset ${offset}`);
-    if(!result1 || result1.length === 0) return res.status(200).json({result:0,message:'no products found'})    
-    res.status(200).json({result:1,data:result1});
-    } catch (err){
-        res.status(200).json({result:0,message:'err'})
-    }
+    // try{
+        const [result1]= await connection.execute(`select * from products limit ${limit} offset ${offset}`);
+        // const [result1]= await connection.execute(`select * from product limit ? offset ?`, [limit, offset]);
+        if(!result1 || result1.length === 0) return res.status(200).json({result:0,message:'no products found'})    
+        res.status(200).json({result:1,data:result1});
+    // } catch (err){
+    //     res.status(200).json({result:0,message:'err'})
+    // }
     });
 
-app.get('/product/:id',async (req,res)=>{
+app.get('/products/:id',async (req,res)=>{
     const {id} = req.params;
     try{
-        const[result2] = await connection.execute('select * from product where id = ?',[id]);
+        const[result2] = await connection.execute('select * from products where id = ?',[id]);
         if(!result2 || result2.length === 0 ) return res.status(200).json({result:0,message:'not found'})
             res.status(200).json({result:1,data:result2})
     } catch(err){
@@ -235,24 +246,24 @@ app.get('/product/:id',async (req,res)=>{
     }
 });
 
-app.post('/product',authenticateToken, async (req,res)=>{
+app.post('/products',authenticateToken, async (req,res)=>{
     const {name_product,price} = req.body;
 
     if(price < 0 || price > 10000000){
         return res.status(200).json({result:0,message:'price must than to 0 '})
     }
     try{
-        const[exiting]= await connection.execute('select * from product where name_product = ?',[name_product]);
+        const[exiting]= await connection.execute('select * from products where name_product = ?',[name_product]);
         if(exiting.length > 0 ) return res.status(200).json({result:0,message:'product exit'})
      
-    const[result3]=await connection.execute('insert into product(name_product,price) values (?,?)',[name_product,price]);
+    const[result3]=await connection.execute('insert into products(name_product,price) values (?,?)',[name_product,price]);
         res.status(200).json({result:1,data:{id:result3.insertId,name_product,price}});
         
         }catch(err){
             res.status(200).json({result:0,message:'err'})
         }
 })
-app.put('/product/:id',authenticateToken, async (req,res)=>{
+app.put('/products/:id',authenticateToken, async (req,res)=>{
     const {id} = req.params;
     const {name_product,price}= req.body;
 
@@ -265,18 +276,18 @@ app.put('/product/:id',authenticateToken, async (req,res)=>{
 
     try{
 
-        const [checkname] = await connection.execute('select * from product where name_product = ? and id !=?',[name_product,id]);
+        const [checkname] = await connection.execute('select * from products where name_product = ? and id !=?',[name_product,id]);
 
         if(checkname.length > 0){ return res.status(200).json({ result: 0, message: 'Product name already exists' });}
 
-        const[exit2] = await connection.execute('select * from product where id = ?', [id]);
+        const[exit2] = await connection.execute('select * from products where id = ?', [id]);
         if(exit2.length === 0) { return res.status(200).json({result:0,message:'not found'})}
 
-        const[updateResult] = await connection.execute('update product set name_product = ?, price= ? where id= ?',[name_product,price,id]);
+        const[updateResult] = await connection.execute('update products set name_product = ?, price= ? where id= ?',[name_product,price,id]);
         if(updateResult.affectedRows === 0 ){ return res.status(200).json({result:0,message:'failed update '})}
 
     
-    res.status(200).json({result:1,message:'updated successfully ',data:{id:updateResult.insertId,name_product,price}})
+    res.status(200).json({result:1,data:{id:updateResult.insertId,name_product,price}})
 
     }catch(err){
         console.log(err)
@@ -307,7 +318,53 @@ app.get('/orders/:id', async (req,res)=>{
     }
 })
 
+app.post('/orders',async(req,res)=>{
+    const {name_product,price}= req.body;
 
+    if(!name_product || !price) return res.status(200).json({result:0,message:'cần nhập đầu đủ thông tin'})
+    if(price<0) return res.status(200).json({result:0,message:'giá cần lớn hơn 0'})
+    
+    try{
+        const[check_name]= await connection.execute('select * from product where name_product = ?',[name_product]);
+        if(check_name.length>0) res.status(200).json({result:0,message:'đã tồn tại sản phẩm'})
+
+        const[insertResult] = await connection.execute('insert into product(name_product,price) values (?,?) ',[name_product,price]);
+        res.status(200).json({result:1,data:{id:insertResult.insertId,name_product,price}});
+    }catch(err){
+        res.status(200).json({result:0,message:'lỗi'})
+    }
+})
+
+app.put('/orders/:id',async(req,res)=>{
+    const {id} = req.params;
+    const {name_product,price}=req.body;
+    if(!name_product || !price) return res.status(200).json({result:0,message:'cần nhập đầu đủ thông tin'})
+    if(price<0) return res.status(200).json({result:0,message:'giá cần lớn hơn 0'})
+    
+        try{
+     const[check_name]= await connection.execute('select * from product where name_product = ? and id != ?',[name_product,id]);
+     if(check_name.length > 0) res.status(200).json({result:0,message:'sản phẩm đã tồn tại'})
+    
+    const[exit] = await connection.execute('select * from product where id = ?',[id]);
+    if(exit.length === 0 ) res.status(200).json({result:0,message:'không tìm thấy sản phẩm '})
+
+    const[updateResult]= await connection.execute('update product set name_product = ? , price = ? where id = ?',[name_product,price,id]);
+    if(updateResult.affectedRows === 0 ) res.status(200).json({result:0,message:'cập nhật thất bại'})
+        res.status(200).json({result:1,data:{id,name_product,price}})
+} catch(err){
+    console.log(err)
+    res.status(200).json({result:0,message:'lỗi'})
+}
+})
+
+// app.delete('/order/:id',async(req,res)=>{
+//     const {id} = req.params;
+//     try{
+    
+//         const [result] = await connection.execute('delete from product where id =? ',[id]);
+//         if(result.affectedRows === 0)
+//     }
+// })
 
 app.listen(port,()=>{
     console.log(`running at:${port}`)
