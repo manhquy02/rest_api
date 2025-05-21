@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>login</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+</head>
+
+<body>
+    <div class="d-flex justify-content-center align-items-center vh-100">
+        <form class="p-4 border" style="max-width: 400px;; width: 100%;">
+            <h1 style="text-align: center;">Đăng nhập</h1>
+            <div class="mb-3">
+                <label for="email" class="form-label">Tên email</label>
+                <input type="email" class="form-control" id="email" placeholder="Tên email">
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Mật khẩu</label>
+                <input type="password" class="form-control" id="password" placeholder="Mật khẩu">
+            </div>
+            <button class="btn btn-primary w-100" type="submit">Đăng nhập</button>
+        </form>
+    </div>
+    <script src="js/login.js"></script>
+</body>
+
+</html>
+
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+
+</head>
+<body>
+    <form id="login-form">
+        <label for="">Tên email</label>
+        <input type="email"  id="email" placeholder="Tên email">
+        <label for="">Mật khẩu</label>
+        <input type="password"  id="password" placeholder="Mật khẩu">
+        <button type="submit">Đăng nhập</button>
+    </form>
+
+    <script>
+        $(document).ready(function(){
+            $('#login-form').submit(function(e){
+                e.preventDefault();
+                const email = $('#email').val();
+                const password = $('#password').val()
+
+                $.post('http://localhost:5555/login',{
+                    email :email,
+                    password:password
+                },function(response){
+                    if(response.token){
+                        localStorage.setItem('access_token',response.token);
+                        alert('Đăng nhập thành công')
+                    }else{
+                        alert('Đăng nhập thất bại')
+                    }
+                })
+            })
+        })
+    </script>
+</body>
+</html> -->

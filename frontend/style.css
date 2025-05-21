@@ -1,0 +1,19 @@
+/* #product-list{
+    display: grid;
+    grid-template-columns: repeat(6,1fr);
+   
+} */
+/* .product-item{
+    padding: 20px;
+}
+
+.form-box{
+    border: 1 px solid;
+    padding: 10px;
+}
+
+.form-box input,
+.form-box select {
+margin-bottom: 10px;
+} */
+
