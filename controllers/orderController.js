@@ -25,50 +25,57 @@ const connection = require('../models/db');
 // }
 exports.createOrder = async (req, res) => {
     try {
-        const { phone, province_code, district_code, ward_code, detail_address, items } = req.body;
+        const { receiver_Name, phone, province_code, district_code, ward_code, detail_address, items } = req.body;
+        const user_id = req.user?.id;
         console.log(req.body);
 
         // Kiểm tra dữ liệu đầu vào
+        if (!receiver_Name) {
+            return res.status(200).json({ result: 0, message: 'Chưa điền tên người nhận' });
+        }
         if (!phone) {
-            return res.status(200).json({ result: 0, message: 'Phone number is required' });
+            return res.status(200).json({ result: 0, message: 'Chưa điền số điện thoại' });
         }
         if (phone.length !== 10) {
-            return res.status(200).json({ result: 0, message: 'phone number must be 10 digits' });
+            return res.status(200).json({ result: 0, message: 'Số điện thoại phải gồm 10 chữ số' });
         }
         if (!province_code) {
-            return res.status(200).json({ result: 0, message: 'province_code is required' });
+            return res.status(200).json({ result: 0, message: 'Chưa điền mã code tỉnh/thành phố' });
         }
 
         if (!district_code) {
-            return res.status(200).json({ result: 0, message: 'district_code is required' });
+            return res.status(200).json({ result: 0, message: 'Chưa điền mã code quận/huyện' });
         }
 
         if (!ward_code) {
-            return res.status(200).json({ result: 0, message: 'ward_code is required' });
+            return res.status(200).json({ result: 0, message: 'Chưa điền mã code phường/xã' });
         }
 
         if (!detail_address) {
-            return res.status(200).json({ result: 0, message: 'Detail address is required' });
+            return res.status(200).json({ result: 0, message: 'Chưa điền địa chỉ cụ thể' });
+        }
+        if (!user_id) {
+            return res.status(200).json({ result: 0, message: 'user_id chưa được xác thực' });
         }
 
         if (!Array.isArray(items)) {
-            return res.status(200).json({ result: 0, message: 'Items must be an array' });
+            return res.status(200).json({ result: 0, message: 'Mặt hàng phải là một mảng' });
         }
 
         if (items.length === 0) {
-            return res.status(200).json({ result: 0, message: 'Items list cannot be empty' });
+            return res.status(200).json({ result: 0, message: 'Danh sách mặt hàng không được để trống' });
         }
         const [check_province_code] = await connection.execute('select * from provinces where code = ? ', [province_code]);
         if (check_province_code.length === 0) {
-            return res.status(200).json({ result: 0, message: 'Invalid province_code' });
+            return res.status(200).json({ result: 0, message: 'Mã code tỉnh/thành phố không hợp lệ' });
         }
         const [check_district_code] = await connection.execute('select * from districts where code = ? ', [district_code]);
         if (check_district_code.length === 0) {
-            return res.status(200).json({ result: 0, message: 'Invalid district_code' });
+            return res.status(200).json({ result: 0, message: 'Mã code quận/huyện không hợp lệ' });
         }
         const [check_ward_code] = await connection.execute('select * from wards where code = ? ', [ward_code]);
         if (check_ward_code.length === 0) {
-            return res.status(200).json({ result: 0, message: 'Invalid ward_code' });
+            return res.status(200).json({ result: 0, message: 'Mã code phường/xã không hợp lệ' });
         }
 
         // Tạo đơn hàng
@@ -76,15 +83,21 @@ exports.createOrder = async (req, res) => {
         const orderItems = [];
         for (const item of items) {
             if (!item.product_id || !item.quantity || typeof item.quantity !== 'number') {
-                return res.status(200).json({ result: 0, message: 'Invalid product_id or quantity in items' });
+                return res.status(200).json({ result: 0, message: 'Mã sản phẩm hoặc giá trong đơn hàng không hợp lệ' });
             }
             if (item.quantity <= 0) {
-                return res.status(200).json({ result: 0, message: 'quantity must be >0' });
+                return res.status(200).json({ result: 0, message: 'Số lượng phải lớn hơn 0' });
             }
+
+
             const [productRows] = await connection.execute('select price from products where id = ?', [item.product_id]);
 
-            if (productRows.length === 0) return res.status(200).json({ result: 0, message: `Product ID not found` });
+            if (productRows.length === 0) return res.status(200).json({ result: 0, message: `Không tìm thấy mã sản phẩm` });
 
+            const [stockRows] = await connection.execute('select stock from products where id = ?', [item.product_id]);
+            if (stockRows.length === 0 || stockRows[0].stock < item.quantity) return res.status(200).json({ result: 0, message: `Số lượng sản phẩm không đủ bán` });
+
+            await connection.execute('update products set stock  = stock - ? where id = ?', [item.quantity, item.product_id]);
 
             const productPrice = productRows[0].price;
             const itemTotal = productPrice * item.quantity;
@@ -97,11 +110,11 @@ exports.createOrder = async (req, res) => {
 
         }
         const [result] = await connection.execute(
-            'INSERT INTO orders (phone, province_code, district_code,ward_code,total_price, detail_address) VALUES (?, ?, ?, ?, ?,?)',
-            [phone, province_code, district_code, ward_code, total_price, detail_address]
+            'INSERT INTO orders (receiver_Name,phone, province_code, district_code,ward_code,total_price, detail_address,user_id) VALUES (?, ?, ?, ?, ?,?,?,?)',
+            [receiver_Name, phone, province_code, district_code, ward_code, total_price, detail_address, user_id]
         );
         if (!result || !result.insertId) {
-            return res.status(500).json({ result: 0, message: 'Failed to create order' });
+            return res.status(500).json({ result: 0, message: 'Tạo đơn hàng thất bại' });
         }
 
         console.log(result)
@@ -117,12 +130,12 @@ exports.createOrder = async (req, res) => {
 
         res.status(200).json({
             result: 1,
-            order: { order_id: orderId, phone, province_code, district_code, ward_code, total_price, detail_address, items: orderItems }
+            order: { order_id: orderId, receiver_Name, phone, province_code, district_code, ward_code, total_price, detail_address, user_id, items: orderItems }
         });
 
     } catch (err) {
         console.error(err);
-        res.status(200).json({ result: 0, message: 'error' });
+        res.status(200).json({ result: 0, message: 'Lỗi' });
     }
 };
 
@@ -252,132 +265,297 @@ exports.createOrder = async (req, res) => {
 // };
 
 
+// exports.getOrders = async (req, res) => {
+//     const page = parseInt(req.query.page);
+//     const limit = parseInt(req.query.limit);
+//     if (req.query.page && (isNaN(page) || page <= 0)) {
+//         return res.status(400).json({ result: 0, message: 'Invalid page number' });
+//     }
+//     if (req.query.limit && (isNaN(limit) || limit <= 0)) {
+//         return res.status(400).json({ result: 0, message: 'Invalid limit value' });
+//     }
+
+//     const { id } = req.query;
+//     const { key, receiver_Name, phone, province_code, district_code, ward_code, detail_address, from_date, to_date } = req.query;
+//     let result1;
+//     let totalPages = 1;
+//     try {
+
+//         let whereClause = 'WHERE  1=1 ';
+//         const params = [];
+
+
+//         if (key) {
+//             whereClause += `and ( receiver_Name LIKE ? or phone LIKE ? or province_code LIKE ? or district_code LIKE ? or ward_code LIKE ? or detail_address LIKE ?)`;
+
+//             params.push(
+//                 key,
+//                 `%${key}%`,
+//                 `%${key}%`,
+//                 `%${key}%`,
+//                 `%${key}%`,
+//                 `%${key}%`,
+//                 `%${key}%`
+//             );
+//         } else {
+//             if (receiver_Name) {
+//                 whereClause += ' AND receiver_Name LIKE ?';
+//                 params.push(`%${receiver_Name}%`);
+//             }
+//             if (phone) {
+//                 whereClause += 'and phone like ?';
+//                 params.push(`%${phone}%`);
+//             }
+//             if (province_code) {
+//                 whereClause += ' AND province_code = ?';
+//                 params.push(province_code);
+//             }
+
+//             if (district_code) {
+//                 whereClause += ' AND district_code = ?';
+//                 params.push(district_code);
+//             }
+
+//             if (ward_code) {
+//                 whereClause += ' AND ward_code = ?';
+//                 params.push(ward_code);
+//             }
+//             if (detail_address) {
+//                 whereClause += ' AND detail_address LIKE ?';
+//                 params.push(`%${detail_address}%`);
+//             }
+
+
+//             if (from_date && to_date) {
+//                 whereClause += ' AND created_at between ? and ?';
+//                 params.push(from_date, to_date);
+//             } else if (from_date) {
+//                 whereClause += ' AND created_at >= ? ';
+//                 params.push(from_date);
+//             } else if (to_date) {
+//                 whereClause += ' AND created_at <= ?';
+//                 params.push(to_date)
+//             }
+
+//         }
+//         if (id) {
+//             whereClause += 'AND id = ?';
+//             params.push(id);
+//         }
+//         // if (id) {
+
+//         //     const [result0] = await connection.execute('select * from orders where id = ?', [id]);
+//         //     if (!result0 || result0.length === 0) return res.status(200).json({ result0: 0, message: 'not found' })
+//         //     const order = result0[0];
+//         //     const [result00] = await connection.execute(`select oi.product_id,oi.quantity,p.name_product,p.price from order_items oi join products p on oi.product_id = p.id where oi.order_id = ?`, [id]);
+//         //     console.log('order items:', result00);
+//         //     return res.status(200).json({ result: 1, order: { ...order, items: result00 } })
+//         // }
+
+//         const usePagination = !isNaN(page) && !isNaN(limit) && page > 0 && limit > 0;
+//         if (usePagination) {
+//             const offset = (page - 1) * limit;
+
+//             // [result1] = await connection.execute(`SELECT * FROM orders ${whereClause}`, params);
+//             // return res.status(200).json({ result: 1, data: result1 });
+
+
+
+//             [result1] = await connection.execute(`SELECT * FROM orders ${whereClause} LIMIT ${limit} OFFSET ${offset}`,
+//                 [...params, limit, offset]
+//             );
+
+//             if (!result1 || result1.length === 0) return res.status(200).json({ result: 0, message: 'no orders found' })
+
+//             const [[countResult]] = await connection.execute(`select count(*) as total from orders ${whereClause}`,
+//                 params)
+//             const total_items = countResult.total;
+
+
+//             if (limit) totalPages = Math.ceil(total_items / limit);
+//             return res.status(200).json({ result: 1, data: result1, pagination: { per_page: limit || total_items, total_pages: totalPages, total_items: total_items, current_page: page || 1 } });
+
+//         } else {
+//             const [result1] = await connection.execute(
+//                 `SELECT * FROM orders ${whereClause}`,
+//                 params
+//             );
+//             return res.status(200).json({ result: 1, result1 });
+//         }
+
+//     } catch (err) {
+//         console.log(err)
+
+//         return res.status(200).json({ result: 0, message: 'err' })
+//     }
+// }
+
+// exports.getOrderById = async (req, res) => {
+//     const { id } = req.params;
+//     try {
+//         const [result] = await connection.execute('select * from orders where id = ?', [id]);
+//         if (!result || result.length === 0) return res.status(200).json({ result: 0, message: 'not found' })
+//         res.status(200).json({ result: 1, data: result })
+//     } catch (err) {
+//         console.log(err)
+//         res.status(200).json({ result: 0, message: 'err' })
+//     }
+// }
+
+
+
 exports.getOrders = async (req, res) => {
-    const page = parseInt(req.query.page);
-    const limit = parseInt(req.query.limit);
-    if (req.query.page && (isNaN(page) || page <= 0)) {
-        return res.status(400).json({ result: 0, message: 'Invalid page number' });
-    }
-    if (req.query.limit && (isNaN(limit) || limit <= 0)) {
-        return res.status(400).json({ result: 0, message: 'Invalid limit value' });
-    }
 
-    const { id } = req.query;
-    const { key, phone, province_code, district_code, ward_code, detail_address, from_date, to_date } = req.query;
-    let result1;
-    let totalPages = 1;
+    const { phone, detail_address, limit, page, receiver_Name, start_date, end_date, sort_by, sort_order } = req.query;
+    // const userIdFromQuery = req.query.user_id;
+    // const user_id = userIdFromQuery ? Number(userIdFromQuery) : req.user.id;
+
+    let user_id = null;
+    if (req.user.role !== 'admin') {
+        user_id = req.user.id;
+    }
+    console.log(req.user)
+    let query = ` SELECT * from orders WHERE 1=1`;
+    let countQuery = `SELECT count(*) as total FROM orders WHERE 1=1`
+    let params = [];
+    let countParams = [];
+    let sortableFields = ['total_price']
     try {
+        if (user_id) {
 
-        let whereClause = 'WHERE  1=1 ';
-        const params = [];
-
-
-        if (key) {
-            whereClause += `and (phone LIKE ? or province_code LIKE ? or district_code LIKE ? or ward_code LIKE ? or detail_address LIKE ?)`;
-
-            params.push(
-                key,
-                `%${key}%`,
-                `%${key}%`,
-                `%${key}%`,
-                `%${key}%`,
-                `%${key}%`
-            );
-        } else {
-            if (phone) {
-                whereClause += 'and phone like ?';
-                params.push(`%${phone}%`);
-            }
-            if (province_code) {
-                whereClause += ' AND province_code = ?';
-                params.push(province_code);
-            }
-
-            if (district_code) {
-                whereClause += ' AND district_code = ?';
-                params.push(district_code);
-            }
-
-            if (ward_code) {
-                whereClause += ' AND ward_code = ?';
-                params.push(ward_code);
-            }
-            if (detail_address) {
-                whereClause += ' AND detail_address LIKE ?';
-                params.push(`%${detail_address}%`);
-            }
-            if (from_date && to_date) {
-                whereClause += ' AND created_at between ? and ?';
-                params.push(from_date, to_date);
-            } else if (from_date) {
-                whereClause += ' AND created_at >= ? ';
-                params.push(from_date);
-            } else if (to_date) {
-                whereClause += ' AND created_at <= ?';
-                params.push(to_date)
-            }
-
-        }
-        if (id) {
-            whereClause += 'AND id = ?';
-            params.push(id);
-        }
-        // if (id) {
-
-        //     const [result0] = await connection.execute('select * from orders where id = ?', [id]);
-        //     if (!result0 || result0.length === 0) return res.status(200).json({ result0: 0, message: 'not found' })
-        //     const order = result0[0];
-        //     const [result00] = await connection.execute(`select oi.product_id,oi.quantity,p.name_product,p.price from order_items oi join products p on oi.product_id = p.id where oi.order_id = ?`, [id]);
-        //     console.log('order items:', result00);
-        //     return res.status(200).json({ result: 1, order: { ...order, items: result00 } })
-        // }
-
-        const usePagination = !isNaN(page) && !isNaN(limit) && page > 0 && limit > 0;
-        if (usePagination) {
-            const offset = (page - 1) * limit;
-
-            // [result1] = await connection.execute(`SELECT * FROM orders ${whereClause}`, params);
-            // return res.status(200).json({ result: 1, data: result1 });
-
-
-
-            [result1] = await connection.execute(`SELECT * FROM orders ${whereClause} LIMIT ${limit} OFFSET ${offset}`,
-                [...params, limit, offset]
-            );
-
-            if (!result1 || result1.length === 0) return res.status(200).json({ result: 0, message: 'no orders found' })
-
-            const [[countResult]] = await connection.execute(`select count(*) as total from orders ${whereClause}`,
-                params)
-            const total_items = countResult.total;
-
-
-            if (limit) totalPages = Math.ceil(total_items / limit);
-            return res.status(200).json({ result: 1, data: result1, pagination: { per_page: limit || total_items, total_pages: totalPages, total_items: total_items, current_page: page || 1 } });
-
-        } else {
-            const [result1] = await connection.execute(
-                `SELECT * FROM orders ${whereClause}`,
-                params
-            );
-            return res.status(200).json({ result: 1, result1 });
+            query += ' and user_id = ?';
+            countQuery += ' AND user_id = ?';
+            params.push(user_id);
+            countParams.push(user_id);
         }
 
+        if (phone) {
+            query += ' and phone = ?';
+            countQuery += ' AND phone = ?';
+            params.push(phone);
+            countParams.push(phone);
+        }
+        if (sort_by && sortableFields.includes(sort_by)) {
+           const order = (sort_order && sort_order.toLowerCase() === 'desc') ? 'DESC' : 'ASC';
+            
+            query += ` order by ${sort_by} ${order}`
+        }
+
+        if (receiver_Name) {
+            query += ' and receiver_Name like ?';
+            countQuery += ' AND receiver_Name like ?';
+            params.push(`%${receiver_Name}%`);
+            countParams.push(`%${receiver_Name}%`);
+        }
+        if (detail_address) {
+            query += ' and detail_address like ?';
+            countQuery += ' AND detail_address LIKE ?';
+            params.push(`%${detail_address}%`);
+            countParams.push(`%${detail_address}%`);
+        }
+        if (start_date && end_date) {
+            query += ' and created_at between ? and ? ';
+            countQuery += ' and created_at between ? and ?';
+            params.push(start_date);
+            params.push(end_date);
+            countParams.push(start_date);
+            countParams.push(end_date);
+        } else if (start_date) {
+            query += ' and created_at >= ?';
+            countQuery += ' and created_at >=  ?';
+            params.push(start_date);
+            countParams.push(start_date);
+        } else if (end_date) {
+            query += ' and created_at  <= ?';
+            countQuery += ' and created_at <= ?';
+            params.push(end_date);
+            countParams.push(end_date);
+        }
+        if (limit && page && !isNaN(limit) && !isNaN(page)) {
+            const limitNum = Number(limit);
+            const pageNum = Number(page);
+            const offset = (pageNum - 1) * limitNum;
+
+            query += ` limit ${limitNum} offset ${offset}`;
+
+
+            const [[{ total }]] = await connection.execute(countQuery, countParams);
+            const totalPages = Math.ceil(total / limitNum);
+            const [results] = await connection.execute(query, params);
+
+            return res.status(200).json({ result: 1, data: results, pagination: { page: pageNum, limit: limitNum, totalPages, total_items: total } })
+        }
+        const [results] = await connection.execute(query, params);
+        if (!results || results.length === 0) {
+            return res.status(200).json({ result: 0, message: 'Không tìm thấy' })
+        }
+
+        res.status(200).json({ result: 1, data: results })
     } catch (err) {
         console.log(err)
-
-        return res.status(200).json({ result: 0, message: 'err' })
+        res.status(200).json({ result: 0, message: 'Lỗi' })
     }
 }
 
 exports.getOrderById = async (req, res) => {
     const { id } = req.params;
     try {
-        const [result] = await connection.execute('select * from orders where id = ?', [id]);
-        if (!result || result.length === 0) return res.status(200).json({ result: 0, message: 'not found' })
+        const [result] = await connection.execute(`
+             SELECT o.id ,o.created_at,o.receiver_Name,o.detail_address,o.phone,oi.product_id,p.name_product,oi.quantity,p.price,p.image,u.email,pr.name as name_province,d.name as name_district,w.name as name_ward
+            FROM orders o
+            LEFT JOIN order_items oi ON o.id = oi.order_id
+            LEFT JOIN products p ON oi.product_id = p.id
+            LEFT join users u on o.user_id = u.id 
+			LEFT join provinces pr on o.province_code = pr.code
+            LEFT join districts d on o.district_code = d.code
+            LEFT join wards w on o.ward_code = w.code
+            WHERE o.id= ?`, [id])
+        if (!result || result.length === 0) return res.status(200).json({ result: 0, message: 'Không tìm thấy' })
+        const base = result[0];
+        const products = result.map(row => ({
+            product_id: row.product_id,
+            name_product: row.name_product,
+            quantity: row.quantity,
+            image: row.image
+
+        }))
+        const response = {
+            orderId: base.id,
+            createdAt: base.created_at,
+            receiver_Name: base.receiver_Name,
+            phone: base.phone,
+            detail_address: base.detail_address,
+            name_province: base.name_province,
+            name_district: base.name_district,
+            name_ward: base.name_ward,
+            products
+
+        }
+        res.status(200).json({ result: 1, data: response })
+    } catch (err) {
+
+        res.status(200).json({ result: 0, message: 'Lỗi' })
+    }
+}
+
+
+exports.getOrderHistory = async (req, res) => {
+    const userId = req.user.id;
+    try {
+        const [result] = await connection.execute(`
+             SELECT o.id ,o.created_at,o.receiver_Name,o.detail_address,o.phone,oi.product_id,p.name_product,oi.quantity,p.price,p.image,u.email,pr.name as name_province,d.name as name_distric,w.name as name_ward
+            FROM orders o
+            JOIN order_items oi ON o.id = oi.order_id
+            JOIN products p ON oi.product_id = p.id
+            join users u on o.user_id = u.id 
+			join provinces pr on o.province_code = pr.code
+            join districts d on o.district_code = d.code
+            join wards w on o.ward_code = w.code
+            WHERE o.user_id= ?`, [userId]);
+        if (!result || result.length === 0) return res.status(200).json({ result: 0, message: 'Không tìm thấy' })
         res.status(200).json({ result: 1, data: result })
     } catch (err) {
         console.log(err)
-        res.status(200).json({ result: 0, message: 'err' })
+        res.status(200).json({ result: 0, message: 'Lỗi' })
     }
 }

@@ -51,7 +51,7 @@ $(document).ready(function () {
                                 </div>
                             </div>`;
             });
-
+            
             $('#product-list').html(html);
             renderPagination(totalPages, apiCurrentPage);
         });
@@ -120,6 +120,9 @@ $(document).ready(function () {
             alert('Vui lòng nhập từ khóa');
             return;
         }
+
+
+        
         $.get(`http://localhost:5555/products/search?name_product=${encodeURIComponent(keyword)}`, function (response) {
 
             if (Array.isArray(response.data)) {

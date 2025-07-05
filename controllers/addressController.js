@@ -8,7 +8,7 @@ exports.getAllProvinces = async (req, res) => {
 
     } catch (err) {
         console.error(err);
-        res.status(200).json({ result: 0, message: 'error' });
+        res.status(200).json({ result: 0, message: 'Lỗi' });
     }
 }
 
@@ -25,12 +25,12 @@ exports.getAllDistricts = async (req,res) => {
         const [result] = await connection.execute(query);
         
         if(!result || result.length == 0) {
-            res.status(200).json({result:0,message:'not found'})
+            res.status(200).json({result:0,message:'Không tìm thấy'})
         }
         res.status(200).json({result:1,data:result})
     } catch (err) {
         console.log(err)
-        res.status(200).json({result:0,message:'error'})
+        res.status(200).json({result:0,message:'Lỗi'})
     }
 }
 
@@ -47,11 +47,11 @@ exports.getAllWards = async (req,res) => {
         }
         const [result] = await connection.execute (query);
         if(!result || result.length == 0) {
-            return res.status(200).json({result:0,message:'not found'})
+            return res.status(200).json({result:0,message:'Không tìm thấy'})
         }
         res.status(200).json({result:1,data:result})
     }catch(err){
         console.log(err)
-        res.status(200).json({result:0,message:'error'})
+        res.status(200).json({result:0,message:'Lỗi'})
     }
 }

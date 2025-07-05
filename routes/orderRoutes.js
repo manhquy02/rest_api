@@ -4,19 +4,11 @@ const connection = require('../models/db')
 const orderController = require('../controllers/orderController');
 const authenticateToken = require('../middlewares/authenticateToken');
 
+
 router.post('/orders', authenticateToken, orderController.createOrder);
 
-// router.get('/orders',orderController.getAllOrder);
-
-// router.get('/orders',orderController.getOrderBySearch);
-
-
-// router.get('/orders/:id', orderController.getOrderById);
-
-
-router.get('/orders', orderController.getOrders);
-
-router.get('/orders/:id', orderController.getOrderById);
-
+router.get('/orders', authenticateToken, orderController.getOrders);
+router.get('/orders/history', authenticateToken, orderController.getOrderHistory);
+router.get('/orders/:id', authenticateToken, orderController.getOrderById);
 
 module.exports = router;

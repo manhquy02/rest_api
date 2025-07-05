@@ -29,10 +29,10 @@ $(document).ready(function () {
     })
 
 
-    $('#cart-btn').on('click', function () {
-        localStorage.setItem('cart', JSON.stringify(cart));
-        alert('Đơn hàng được lưu')
+    // $('#cart-btn').on('click', function () {
+    //     localStorage.setItem('cart', JSON.stringify(cart));
+    //     alert('Đơn hàng được lưu')
 
-    })
+    // })
 
 })

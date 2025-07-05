@@ -2,13 +2,16 @@ const express = require('express');
 const router = express.Router();
 const connection = require('../models/db');
 const userController = require('../controllers/userController');
+const authenticateToken = require('../middlewares/authenticateToken');
 
 
 router.get('/users',userController.getAllUsers);
 
+router.get('/users/search',userController.getUserByEmail);
+
 router.get('/users/:id',userController.getUserById);
 
-router.post('/users', userController.createUser);
+router.post('/users',authenticateToken, userController.createUser);
 
 router.put('/users/:id',userController.updateUser);
 

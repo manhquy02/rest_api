@@ -7,7 +7,7 @@ function authenticateToken(req, res, next) {
     if (!token) {
         return res.status(200).json({
             result: 0,
-            message: 'token not provinded'
+            message: 'Chưa có token'
         })
     }
 
@@ -15,10 +15,12 @@ function authenticateToken(req, res, next) {
         if (err) {
             return res.status(200).json({
                 result: 0,
-                message: 'token is invalid or expired'
+                message: 'Token không hợp lệ hoặc đã hết hạn'
             })
         }
         req.user = user;
+                console.log(req.user)
+
         next();
     })
 }
